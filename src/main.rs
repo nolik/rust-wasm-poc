@@ -1,10 +1,14 @@
+use anyhow::Error;
+use serde_json::json;
 use state::{Entry, Filter, State};
 use strum::IntoEnumIterator;
-use yew::format::Json;
+use yew::format::{Json, Nothing};
+use yew::services::fetch::{Request, Response};
+use yew::services::storage::Area;
+use yew::services::{ConsoleService, FetchService, StorageService};
 use yew::web_sys::HtmlInputElement as InputElement;
 use yew::{classes, html, Component, ComponentLink, Html, InputData, NodeRef, ShouldRender};
 use yew::{events::KeyboardEvent, Classes};
-use yew_services::storage::{Area, StorageService};
 
 mod state;
 
@@ -22,6 +26,12 @@ pub enum Msg {
     Toggle(usize),
     ClearCompleted,
     Focus,
+}
+
+impl From<()> for Msg {
+    fn from(_value: ()) -> Self {
+        Msg::Add
+    }
 }
 
 pub struct Model {
@@ -69,16 +79,39 @@ impl Component for Model {
                         completed: false,
                         editing: false,
                     };
+                    ConsoleService::log("add new item");
+                    // TODO: adopt fetch request
+                    let body = &json!({"url": entry.description});
+                    let post_request = Request::post("https://my.api/url")
+                        .header("Content-Type", "application/json")
+                        .body(Json(body))
+                        .expect("Failed to build request.");
+
+                    let _task_ = FetchService::fetch(
+                        post_request,
+                        self.link
+                            .callback(|response: Response<Result<String, Error>>| {
+                                if response.status().is_success() {
+                                    ConsoleService::log("success");
+                                } else {
+                                    ConsoleService::log("failure");
+
+                                }
+                            }),
+                    );
+
                     self.state.entries.push(entry);
                 }
                 self.state.value = "".to_string();
             }
             Msg::Edit(idx) => {
+                ConsoleService::log("Edit");
                 let edit_value = self.state.edit_value.trim().to_string();
                 self.state.complete_edit(idx, edit_value);
                 self.state.edit_value = "".to_string();
             }
             Msg::Update(val) => {
+                ConsoleService::log("Update");
                 println!("Input: {}", val);
                 self.state.value = val;
             }

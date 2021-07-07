@@ -2,7 +2,7 @@ use anyhow::Error;
 use serde_json::json;
 use state::{Entry, Filter, State};
 use strum::IntoEnumIterator;
-use yew::format::{Json, Nothing};
+use yew::format::Json;
 use yew::services::fetch::FetchOptions;
 use yew::services::fetch::FetchTask;
 use yew::services::fetch::{Request, Response};
@@ -14,7 +14,7 @@ use yew::{events::KeyboardEvent, Classes};
 
 mod state;
 
-const KEY: &str = "yew.todomvc.self";
+const KEY: &str = "yew.url-clipper.self";
 
 pub enum Msg {
     Add,
@@ -92,19 +92,14 @@ impl Component for Model {
                         .body(Json(body))
                         .expect("Failed to build request.");
 
-                    let _get_request = Request::get("http://127.0.0.1:8090/")
-                        .header("Content-Type", "application/json")
-                        .body(Json(body))
-                        .expect("Failed to build request.");
-
-                    let _options = FetchOptions {
-                        mode: Some(RequestMode::Cors),
+                    let options = FetchOptions {
+                        mode: Some(RequestMode::NoCors),
                         ..FetchOptions::default()
                     };
 
                     let task = FetchService::fetch_with_options(
                         post_request,
-                        _options,
+                        options,
                         self.link
                             .callback(|response: Response<Result<String, Error>>| {
                                 ConsoleService::log("requestCallback");
@@ -115,14 +110,14 @@ impl Component for Model {
                                 } else {
                                     ConsoleService::log("failure");
                                 }
-                            }),
+                            })
                     )
                     .expect("failed to start request");
+                    self.state.entries.push(entry);
 
                     // store the task so it isn't canceled immediately
                     self.fetch_task = Some(task);
 
-                    self.state.entries.push(entry);
                 }
                 self.state.value = "".to_string();
             }

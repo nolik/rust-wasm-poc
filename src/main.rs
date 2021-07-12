@@ -2,17 +2,19 @@ use anyhow::Error;
 use serde_json::json;
 use state::{Entry, Filter, State};
 use strum::IntoEnumIterator;
-use yew::format::{Json, Nothing};
+use yew::format::Json;
+use yew::services::fetch::FetchOptions;
+use yew::services::fetch::FetchTask;
 use yew::services::fetch::{Request, Response};
 use yew::services::storage::Area;
 use yew::services::{ConsoleService, FetchService, StorageService};
-use yew::web_sys::HtmlInputElement as InputElement;
+use yew::web_sys::{HtmlInputElement as InputElement, RequestMode};
 use yew::{classes, html, Component, ComponentLink, Html, InputData, NodeRef, ShouldRender};
 use yew::{events::KeyboardEvent, Classes};
 
 mod state;
 
-const KEY: &str = "yew.todomvc.self";
+const KEY: &str = "yew.url-clipper.self";
 
 pub enum Msg {
     Add,
@@ -39,6 +41,7 @@ pub struct Model {
     storage: StorageService,
     state: State,
     focus_ref: NodeRef,
+    fetch_task: Option<FetchTask>,
 }
 
 impl Component for Model {
@@ -61,11 +64,13 @@ impl Component for Model {
             edit_value: "".into(),
         };
         let focus_ref = NodeRef::default();
+        let fetch_task = None;
         Self {
             link,
             storage,
             state,
             focus_ref,
+            fetch_task,
         }
     }
 
@@ -81,26 +86,38 @@ impl Component for Model {
                     };
                     ConsoleService::log("add new item");
                     // TODO: adopt fetch request
-                    let body = &json!({"url": entry.description});
-                    let post_request = Request::post("https://my.api/url")
+                    let body = &json!({"address": entry.description});
+                    let post_request = Request::post("http://127.0.0.1:8090/echo")
                         .header("Content-Type", "application/json")
                         .body(Json(body))
                         .expect("Failed to build request.");
 
-                    let _task_ = FetchService::fetch(
+                    let options = FetchOptions {
+                        mode: Some(RequestMode::NoCors),
+                        ..FetchOptions::default()
+                    };
+
+                    let task = FetchService::fetch_with_options(
                         post_request,
+                        options,
                         self.link
                             .callback(|response: Response<Result<String, Error>>| {
+                                ConsoleService::log("requestCallback");
+                                ConsoleService::log(response.status().as_str());
+
                                 if response.status().is_success() {
                                     ConsoleService::log("success");
                                 } else {
                                     ConsoleService::log("failure");
-
                                 }
-                            }),
-                    );
-
+                            })
+                    )
+                    .expect("failed to start request");
                     self.state.entries.push(entry);
+
+                    // store the task so it isn't canceled immediately
+                    self.fetch_task = Some(task);
+
                 }
                 self.state.value = "".to_string();
             }

@@ -1,16 +1,16 @@
-use anyhow::Error;
 use serde_json::json;
 use state::{Entry, Filter, State};
 use strum::IntoEnumIterator;
 use yew::format::Json;
-use yew::services::fetch::FetchOptions;
 use yew::services::fetch::FetchTask;
 use yew::services::fetch::{Request, Response};
 use yew::services::storage::Area;
 use yew::services::{ConsoleService, FetchService, StorageService};
-use yew::web_sys::{HtmlInputElement as InputElement, RequestMode};
+use yew::web_sys::HtmlInputElement as InputElement;
 use yew::{classes, html, Component, ComponentLink, Html, InputData, NodeRef, ShouldRender};
 use yew::{events::KeyboardEvent, Classes};
+
+use serde::Deserialize;
 
 mod state;
 
@@ -20,6 +20,7 @@ pub enum Msg {
     Add,
     Edit(usize),
     Update(String),
+    UpdateStore(Result<Url, anyhow::Error>),
     UpdateEdit(String),
     Remove(usize),
     SetFilter(Filter),
@@ -30,10 +31,9 @@ pub enum Msg {
     Focus,
 }
 
-impl From<()> for Msg {
-    fn from(_value: ()) -> Self {
-        Msg::Add
-    }
+#[derive(Deserialize, Debug, Clone)]
+pub struct Url {
+    address: String,
 }
 
 pub struct Model {
@@ -77,47 +77,12 @@ impl Component for Model {
     fn update(&mut self, msg: Self::Message) -> ShouldRender {
         match msg {
             Msg::Add => {
-                let description = self.state.value.trim();
-                if !description.is_empty() {
-                    let entry = Entry {
-                        description: description.to_string(),
-                        completed: false,
-                        editing: false,
-                    };
-                    ConsoleService::log("add new item");
-                    // TODO: adopt fetch request
-                    let body = &json!({"address": entry.description});
-                    let post_request = Request::post("http://127.0.0.1:8090/echo")
-                        .header("Content-Type", "application/json")
-                        .body(Json(body))
-                        .expect("Failed to build request.");
-
-                    let options = FetchOptions {
-                        mode: Some(RequestMode::NoCors),
-                        ..FetchOptions::default()
-                    };
-
-                    let task = FetchService::fetch_with_options(
-                        post_request,
-                        options,
-                        self.link
-                            .callback(|response: Response<Result<String, Error>>| {
-                                ConsoleService::log("requestCallback");
-                                ConsoleService::log(response.status().as_str());
-
-                                if response.status().is_success() {
-                                    ConsoleService::log("success");
-                                } else {
-                                    ConsoleService::log("failure");
-                                }
-                            })
-                    )
-                    .expect("failed to start request");
-                    self.state.entries.push(entry);
-
+                let link = self.state.value.clone();
+                let trimmed_link = link.trim();
+                if !trimmed_link.is_empty() {
+                    let task = self.fetch_data(trimmed_link);
                     // store the task so it isn't canceled immediately
                     self.fetch_task = Some(task);
-
                 }
                 self.state.value = "".to_string();
             }
@@ -135,6 +100,25 @@ impl Component for Model {
             Msg::UpdateEdit(val) => {
                 println!("Input: {}", val);
                 self.state.edit_value = val;
+            }
+            Msg::UpdateStore(response) => {
+                ConsoleService::log("UpdateStore");
+
+                match response {
+                    Ok(url) => {
+                        ConsoleService::log("ok URL");
+                        let entry = Entry {
+                            description: url.clone().address,
+                            completed: false,
+                            editing: false,
+                        };
+                        self.state.entries.push(entry);
+                    }
+                    Err(error) => {
+                        ConsoleService::log("error");
+                        ConsoleService::log(&error.root_cause().to_string());
+                    }
+                }
             }
             Msg::Remove(idx) => {
                 self.state.remove(idx);
@@ -219,6 +203,24 @@ impl Component for Model {
 }
 
 impl Model {
+    fn fetch_data(&mut self, description: &str) -> FetchTask {
+        let body = &json!({ "address": description });
+        let post_request = Request::post("http://127.0.0.1:8090/clip")
+            .header("Content-Type", "application/json")
+            .body(Json(body))
+            .expect("Failed to build request.");
+
+        let callback =
+            self.link
+                .callback(|response: Response<Json<Result<Url, anyhow::Error>>>| {
+                    let (meta, Json(data)) = response.into_parts();
+                    ConsoleService::log(&meta.status.to_string());
+                    Msg::UpdateStore(data)
+                });
+
+        FetchService::fetch(post_request, callback).expect("failed to start request")
+    }
+
     fn view_filter(&self, filter: Filter) -> Html {
         let cls = if self.state.filter == filter {
             "selected"

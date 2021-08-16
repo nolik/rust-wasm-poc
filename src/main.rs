@@ -15,6 +15,7 @@ use serde::Deserialize;
 mod state;
 
 const KEY: &str = "yew.url-clipper.self";
+const BACKEND_ADDRESS: &str = "localhost:8090/";
 
 pub enum Msg {
     Add,
@@ -108,7 +109,7 @@ impl Component for Model {
                     Ok(url) => {
                         ConsoleService::log("ok URL");
                         let entry = Entry {
-                            description: url.clone().address,
+                            description: BACKEND_ADDRESS.to_owned() + &url.clone().address,
                             completed: false,
                             editing: false,
                         };
@@ -190,12 +191,12 @@ impl Component for Model {
                             { for Filter::iter().map(|flt| self.view_filter(flt)) }
                         </ul>
                         <button class="clear-completed" onclick=self.link.callback(|_| Msg::ClearCompleted)>
-                            { format!("Clear completed ({})", self.state.total_completed()) }
+                            { format!("Clear copied ({})", self.state.total_completed()) }
                         </button>
                     </footer>
                 </section>
                 <footer class="info">
-                    <p>{ "Double-click to add link" }</p>
+                    <p>{ "Post to clip the link" }</p>
                 </footer>
             </div>
         }

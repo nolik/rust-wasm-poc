@@ -7,7 +7,10 @@ use yew::services::fetch::{Request, Response};
 use yew::services::storage::Area;
 use yew::services::{ConsoleService, FetchService, StorageService};
 use yew::web_sys::HtmlInputElement as InputElement;
-use yew::{classes, html, Component, ComponentLink, Html, InputData, NodeRef, ShouldRender};
+use yew::{
+    classes, html, web_sys, Component, ComponentLink, Html, InputData, NodeRef, ShouldRender,
+};
+use wasm_bindgen_futures;
 use yew::{events::KeyboardEvent, Classes};
 
 use serde::Deserialize;

@@ -29,6 +29,11 @@ That's it, we're done!
 
 ### Running
 
+for enabling experimental web-sys API functionality like Clipboard API:
+```bash
+export RUSTFLAGS=--cfg=web_sys_unstable_apis
+```
+
 ```bash
 trunk serve
 ```

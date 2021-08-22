@@ -53,6 +53,15 @@ impl State {
             .nth(idx)
             .unwrap();
         entry.completed = !entry.completed;
+
+        // copy to clipboard
+        let window: web_sys::Window = web_sys::window().expect("window not available");
+        let navigator: web_sys::Navigator = window.navigator();
+        let clip: web_sys::Clipboard = navigator.clipboard().expect("Clipboard not available");
+        let promise  = clip.write_text(&entry.description);
+        wasm_bindgen_futures::spawn_local(async {
+            wasm_bindgen_futures::JsFuture::from(promise).await;
+        });
     }
 
     pub fn toggle_all(&mut self, value: bool) {

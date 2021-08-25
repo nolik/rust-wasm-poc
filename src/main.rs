@@ -1,5 +1,5 @@
 use serde_json::json;
-use state::{Entry, Filter, State};
+use state::{Entry, State};
 use strum::IntoEnumIterator;
 use yew::format::Json;
 use yew::services::fetch::FetchTask;
@@ -15,19 +15,14 @@ use serde::Deserialize;
 mod state;
 
 const KEY: &str = "yew.url-clipper.self";
+const CLIP_URL: &str = "http://clip:8090/";
 
 pub enum Msg {
     Add,
-    Edit(usize),
     Update(String),
     UpdateStore(Result<Url, anyhow::Error>),
-    UpdateEdit(String),
     Remove(usize),
-    SetFilter(Filter),
-    ToggleAll,
-    ToggleEdit(usize),
     Toggle(usize),
-    ClearCompleted,
     Focus,
 }
 
@@ -59,9 +54,7 @@ impl Component for Model {
         };
         let state = State {
             entries,
-            filter: Filter::All,
             value: "".into(),
-            edit_value: "".into(),
         };
         let focus_ref = NodeRef::default();
         let fetch_task = None;
@@ -86,20 +79,10 @@ impl Component for Model {
                 }
                 self.state.value = "".to_string();
             }
-            Msg::Edit(idx) => {
-                ConsoleService::log("Edit");
-                let edit_value = self.state.edit_value.trim().to_string();
-                self.state.complete_edit(idx, edit_value);
-                self.state.edit_value = "".to_string();
-            }
             Msg::Update(val) => {
                 ConsoleService::log("Update");
                 println!("Input: {}", val);
                 self.state.value = val;
-            }
-            Msg::UpdateEdit(val) => {
-                println!("Input: {}", val);
-                self.state.edit_value = val;
             }
             Msg::UpdateStore(response) => {
                 ConsoleService::log("UpdateStore");
@@ -108,9 +91,8 @@ impl Component for Model {
                     Ok(url) => {
                         ConsoleService::log("ok URL");
                         let entry = Entry {
-                            description: url.clone().address,
-                            completed: false,
-                            editing: false,
+                            description: CLIP_URL.to_owned() + &url.address,
+                            completed: false
                         };
                         self.state.entries.push(entry);
                     }
@@ -123,23 +105,8 @@ impl Component for Model {
             Msg::Remove(idx) => {
                 self.state.remove(idx);
             }
-            Msg::SetFilter(filter) => {
-                self.state.filter = filter;
-            }
-            Msg::ToggleEdit(idx) => {
-                self.state.edit_value = self.state.entries[idx].description.clone();
-                self.state.clear_all_edit();
-                self.state.toggle_edit(idx);
-            }
-            Msg::ToggleAll => {
-                let status = !self.state.is_all_completed();
-                self.state.toggle_all(status);
-            }
             Msg::Toggle(idx) => {
                 self.state.toggle(idx);
-            }
-            Msg::ClearCompleted => {
-                self.state.clear_completed();
             }
             Msg::Focus => {
                 if let Some(input) = self.focus_ref.cast::<InputElement>() {
@@ -169,30 +136,22 @@ impl Component for Model {
                         { self.view_input() }
                     </header>
                     <section class=classes!("main", hidden_class)>
-                        <input
-                            type="checkbox"
-                            class="toggle-all"
-                            id="toggle-all"
-                            checked=self.state.is_all_completed()
-                            onclick=self.link.callback(|_| Msg::ToggleAll)
-                        />
-                        <label for="toggle-all" />
                         <ul class="todo-list">
-                            { for self.state.entries.iter().filter(|e| self.state.filter.fits(e)).enumerate().map(|e| self.view_entry(e)) }
+                            { for self.state.entries.iter().enumerate().map(|e| self.view_entry(e)) }
                         </ul>
                     </section>
-                    <footer class=classes!("footer", hidden_class)>
-                        <span class="todo-count">
-                            <strong>{ self.state.total() }</strong>
-                            { " item(s) left" }
-                        </span>
-                        <ul class="filters">
-                            { for Filter::iter().map(|flt| self.view_filter(flt)) }
-                        </ul>
-                        <button class="clear-completed" onclick=self.link.callback(|_| Msg::ClearCompleted)>
-                            { format!("Clear completed ({})", self.state.total_completed()) }
-                        </button>
-                    </footer>
+                    // <footer class=classes!("footer", hidden_class)>
+                    //     <span class="todo-count">
+                    //         <strong>{ self.state.total() }</strong>
+                    //         { " item(s) left" }
+                    //     </span>
+                    //     <ul class="filters">
+                    //         { for Filter::iter().map(|flt| self.view_filter(flt)) }
+                    //     </ul>
+                    //     <button class="clear-completed" onclick=self.link.callback(|_| Msg::ClearCompleted)>
+                    //         { format!("Clear completed ({})", self.state.total_completed()) }
+                    //     </button>
+                    // </footer>
                 </section>
                 <footer class="info">
                     <p>{ "Double-click to add link" }</p>
@@ -205,7 +164,7 @@ impl Component for Model {
 impl Model {
     fn fetch_data(&mut self, description: &str) -> FetchTask {
         let body = &json!({ "address": description });
-        let post_request = Request::post("http://127.0.0.1:8090/clip")
+        let post_request = Request::post(CLIP_URL.to_owned() + "clip")
             .header("Content-Type", "application/json")
             .body(Json(body))
             .expect("Failed to build request.");
@@ -219,24 +178,6 @@ impl Model {
                 });
 
         FetchService::fetch(post_request, callback).expect("failed to start request")
-    }
-
-    fn view_filter(&self, filter: Filter) -> Html {
-        let cls = if self.state.filter == filter {
-            "selected"
-        } else {
-            "not-selected"
-        };
-        html! {
-            <li>
-                <a class=cls
-                   href=filter.as_href()
-                   onclick=self.link.callback(move |_| Msg::SetFilter(filter))
-                >
-                    { filter }
-                </a>
-            </li>
-        }
     }
 
     fn view_input(&self) -> Html {
@@ -262,9 +203,6 @@ impl Model {
 
     fn view_entry(&self, (idx, entry): (usize, &Entry)) -> Html {
         let mut class = Classes::from("todo");
-        if entry.editing {
-            class.push(" editing");
-        }
         if entry.completed {
             class.push(" completed");
         }
@@ -277,34 +215,33 @@ impl Model {
                         checked=entry.completed
                         onclick=self.link.callback(move |_| Msg::Toggle(idx))
                     />
-                    <label ondblclick=self.link.callback(move |_| Msg::ToggleEdit(idx))>{ &entry.description }</label>
+                    <label>{ &entry.description }</label>
                     <button class="destroy" onclick=self.link.callback(move |_| Msg::Remove(idx)) />
                 </div>
-                { self.view_entry_edit_input((idx, &entry)) }
             </li>
         }
     }
 
-    fn view_entry_edit_input(&self, (idx, entry): (usize, &Entry)) -> Html {
-        if entry.editing {
-            html! {
-                <input
-                    class="edit"
-                    type="text"
-                    ref=self.focus_ref.clone()
-                    value=self.state.edit_value.clone()
-                    onmouseover=self.link.callback(|_| Msg::Focus)
-                    oninput=self.link.callback(|e: InputData| Msg::UpdateEdit(e.value))
-                    onblur=self.link.callback(move |_| Msg::Edit(idx))
-                    onkeypress=self.link.batch_callback(move |e: KeyboardEvent| {
-                        if e.key() == "Enter" { Some(Msg::Edit(idx)) } else { None }
-                    })
-                />
-            }
-        } else {
-            html! { <input type="hidden" /> }
-        }
-    }
+    // fn view_entry_edit_input(&self, (idx, entry): (usize, &Entry)) -> Html {
+    //     if entry.editing {
+    //         html! {
+    //             <input
+    //                 class="edit"
+    //                 type="text"
+    //                 ref=self.focus_ref.clone()
+    //                 value=self.state.edit_value.clone()
+    //                 onmouseover=self.link.callback(|_| Msg::Focus)
+    //                 oninput=self.link.callback(|e: InputData| Msg::UpdateEdit(e.value))
+    //                 onblur=self.link.callback(move |_| Msg::Edit(idx))
+    //                 onkeypress=self.link.batch_callback(move |e: KeyboardEvent| {
+    //                     if e.key() == "Enter" { Some(Msg::Edit(idx)) } else { None }
+    //                 })
+    //             />
+    //         }
+    //     } else {
+    //         html! { <input type="hidden" /> }
+    //     }
+    // }
 }
 
 fn main() {

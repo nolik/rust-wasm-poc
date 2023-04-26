@@ -1,6 +1,5 @@
 use serde_json::json;
 use state::{Entry, State};
-use strum::IntoEnumIterator;
 use yew::format::Json;
 use yew::services::fetch::FetchTask;
 use yew::services::fetch::{Request, Response};
@@ -81,7 +80,6 @@ impl Component for Model {
             }
             Msg::Update(val) => {
                 ConsoleService::log("Update");
-                println!("Input: {}", val);
                 self.state.value = val;
             }
             Msg::UpdateStore(response) => {
@@ -94,7 +92,9 @@ impl Component for Model {
                             description: CLIP_URL.to_owned() + &url.address,
                             completed: false
                         };
-                        self.state.entries.push(entry);
+                        if !self.state.entries.contains(&entry){
+                            self.state.entries.push(entry);
+                        }
                     }
                     Err(error) => {
                         ConsoleService::log("error");
@@ -140,18 +140,6 @@ impl Component for Model {
                             { for self.state.entries.iter().enumerate().map(|e| self.view_entry(e)) }
                         </ul>
                     </section>
-                    // <footer class=classes!("footer", hidden_class)>
-                    //     <span class="todo-count">
-                    //         <strong>{ self.state.total() }</strong>
-                    //         { " item(s) left" }
-                    //     </span>
-                    //     <ul class="filters">
-                    //         { for Filter::iter().map(|flt| self.view_filter(flt)) }
-                    //     </ul>
-                    //     <button class="clear-completed" onclick=self.link.callback(|_| Msg::ClearCompleted)>
-                    //         { format!("Clear completed ({})", self.state.total_completed()) }
-                    //     </button>
-                    // </footer>
                 </section>
                 <footer class="info">
                     <p>{ "Double-click to add link" }</p>
@@ -221,27 +209,6 @@ impl Model {
             </li>
         }
     }
-
-    // fn view_entry_edit_input(&self, (idx, entry): (usize, &Entry)) -> Html {
-    //     if entry.editing {
-    //         html! {
-    //             <input
-    //                 class="edit"
-    //                 type="text"
-    //                 ref=self.focus_ref.clone()
-    //                 value=self.state.edit_value.clone()
-    //                 onmouseover=self.link.callback(|_| Msg::Focus)
-    //                 oninput=self.link.callback(|e: InputData| Msg::UpdateEdit(e.value))
-    //                 onblur=self.link.callback(move |_| Msg::Edit(idx))
-    //                 onkeypress=self.link.batch_callback(move |e: KeyboardEvent| {
-    //                     if e.key() == "Enter" { Some(Msg::Edit(idx)) } else { None }
-    //                 })
-    //             />
-    //         }
-    //     } else {
-    //         html! { <input type="hidden" /> }
-    //     }
-    // }
 }
 
 fn main() {

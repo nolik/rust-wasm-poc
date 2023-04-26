@@ -1,5 +1,4 @@
 use serde_derive::{Deserialize, Serialize};
-use strum_macros::{EnumIter, ToString};
 
 #[derive(Debug, Serialize, Deserialize)]
 pub struct State {
@@ -15,15 +14,6 @@ impl State {
             .nth(idx)
             .unwrap();
         entry.completed = !entry.completed;
-
-        // copy to clipboard
-        let window: web_sys::Window = web_sys::window().expect("window not available");
-        let navigator: web_sys::Navigator = window.navigator();
-        let clip: web_sys::Clipboard = navigator.clipboard().expect("Clipboard not available");
-        let promise  = clip.write_text(&entry.description);
-        wasm_bindgen_futures::spawn_local(async {
-            wasm_bindgen_futures::JsFuture::from(promise).await;
-        });
     }
 
     pub fn remove(&mut self, idx: usize) {
@@ -40,7 +30,7 @@ impl State {
     }
 }
 
-#[derive(Debug, Serialize, Deserialize)]
+#[derive(Debug, Serialize, Deserialize, Eq, PartialEq)]
 pub struct Entry {
     pub description: String,
     pub completed: bool
